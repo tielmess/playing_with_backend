@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Users API Front-End (Vanilla JS)</title>
+    <style>
+        :root{
+            --bg:#0b0f14; --panel:#121821; --muted:#94a3b8; --fg:#e5e7eb; --line:#1f2937; --acc:#60a5fa; --ok:#22c55e; --bad:#ef4444;
+        }
+        *{box-sizing:border-box}
+        html,body{height:100%}
+        body{margin:0;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--fg)}
+        header{padding:20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:linear-gradient(180deg,var(--panel),rgba(18,24,33,.9));backdrop-filter: blur(6px);z-index:10}
+        h1{margin:0 0 6px;font-size:20px}
+        .sub{color:var(--muted);font-size:12px}
+        .grid{display:grid;gap:16px;padding:16px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+        .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+        .card h2{margin:0 0 10px;font-size:16px}
+        label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
+        input,select,button,textarea{font:inherit}
+        input[type=text],input[type=email],input[type=number],input[type=password],select,textarea{
+            width:100%;background:#0f141c;color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:10px;outline:none
+        }
+        textarea{min-height:72px;resize:vertical}
+        .row{display:flex;gap:8px;align-items:center}
+        .row > *{flex:1}
+        button{border-radius:10px;border:1px solid var(--line);background:#0f141c;color:var(--fg);padding:10px 12px;cursor:pointer}
+        button:hover{background:#0c1118}
+        .btn-primary{border-color:#1d4ed8;background:#1e40af}
+        .btn-primary:hover{background:#1b3a96}
+        .btn-danger{border-color:#7f1d1d;background:#991b1b}
+        .btn-danger:hover{background:#7f1d1d}
+        .btn-ghost{background:transparent;border-color:transparent;color:var(--muted)}
+        .status{padding:10px;border:1px solid var(--line);border-radius:10px;background:#0f141c;color:var(--muted);font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;white-space:pre-wrap}
+        table{width:100%;border-collapse:collapse;font-size:13px}
+        th,td{border-bottom:1px solid var(--line);padding:8px;vertical-align:top}
+        th{color:var(--muted);font-weight:600;text-align:left}
+        tr:hover{background:#0f141c}
+        .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#0f141c;border:1px solid var(--line);color:var(--muted);font-size:12px}
+        .hint{color:var(--muted);font-size:12px;margin-top:6px}
+        .banner{background:#052e1b;border:1px solid #14532d;color:#a7f3d0;padding:10px;border-radius:10px;margin:10px 16px}
+        .warn{background:#3b0b0b;border-color:#7f1d1d;color:#fecaca}
+        .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+        .muted{color:var(--muted)}
+    </style>
+</head>
+<body>
+<header>
+    <h1>Users API Front-End <span class="pill">vanilla JS</span></h1>
+    <div class="row">
+        <div>
+            <label for="baseUrl">Base URL</label>
+            <input id="baseUrl" type="text" placeholder="http://localhost:3000" />
+        </div>
+        <div>
+            <label for="adminToken">Admin Token (optional, for admin routes)</label>
+            <input id="adminToken" type="password" placeholder="Set to call /api/admin/*" />
+        </div>
+        <div style="flex:0 0 auto;align-self:flex-end">
+            <button id="saveEnv" class="btn-primary">Save</button>
+        </div>
+    </div>
+    <p class="sub">Tip: Save your Base URL and token (stored in localStorage). If you open this file via <code>file://</code>, enable CORS on the server or serve this file from Express.</p>
+</header>
+
+<div id="corsBanner" class="banner warn" style="display:none">
+    You are viewing from <code>file://</code> and the server may block cross-origin requests. Either run <code>app.use(require('cors')())</code> on the server, or serve this file via <code>express.static</code> on the same origin.
+</div>
+
+<main class="grid">
+    <!-- Create User -->
+    <section class="card">
+        <h2>Create User</h2>
+        <label for="cuName">Name</label>
+        <input id="cuName" type="text" placeholder="Ada Lovelace" />
+        <label for="cuEmail">Email</label>
+        <input id="cuEmail" type="email" placeholder="ada@example.com" />
+        <div class="row" style="margin-top:10px">
+            <button id="btnCreate" class="btn-primary">Create</button>
+            <button id="btnClearCreate" class="btn-ghost" type="button">Clear</button>
+        </div>
+        <div id="createStatus" class="hint"></div>
+    </section>
+
+    <!-- Users (Paged/Search) -->
+    <section class="card">
+        <h2>Users (Paged / Search)</h2>
+        <div class="row">
+            <div>
+                <label for="q">q (partial match)</label>
+                <input id="q" type="text" placeholder="e.g. ada" />
+            </div>
+            <div>
+                <label for="emailExact">email (exact)</label>
+                <input id="emailExact" type="text" placeholder="exact@example.com" />
+            </div>
+        </div>
+        <div class="row">
+            <div>
+                <label for="sortBy">sortBy</label>
+                <select id="sortBy">
+                    <option value="createdAt" selected>createdAt</option>
+                    <option value="name">name</option>
+                    <option value="email">email</option>
+                    <option value="updatedAt">updatedAt</option>
+                </select>
+            </div>
+            <div>
+                <label for="order">order</label>
+                <select id="order">
+                    <option value="desc" selected>desc</option>
+                    <option value="asc">asc</option>
+                </select>
+            </div>
+            <div>
+                <label for="limit">limit</label>
+                <input id="limit" type="number" min="1" max="100" value="5" />
+            </div>
+            <div>
+                <label for="page">page</label>
+                <input id="page" type="number" min="1" value="1" />
+            </div>
+        </div>
+        <div class="row" style="margin-top:10px">
+            <button id="btnFetch" class="btn-primary">Fetch</button>
+            <button id="btnPrev" type="button">Prev</button>
+            <button id="btnNext" type="button">Next</button>
+            <span id="pageMeta" class="hint" style="flex:2"></span>
+        </div>
+        <div style="margin-top:10px;overflow:auto">
+            <table>
+                <thead>
+                <tr><th>#</th><th>Name</th><th>Email</th><th>Created</th><th>Actions</th></tr>
+                </thead>
+                <tbody id="usersTbody"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Selected User (Get/Update/Delete) -->
+    <section class="card">
+        <h2>Selected User</h2>
+        <div class="hint">Pick a user from the table to load here.</div>
+        <label for="suId">User ID</label>
+        <input id="suId" type="text" placeholder="ObjectId" readonly />
+        <label for="suName">Name</label>
+        <input id="suName" type="text" />
+        <label for="suEmail">Email</label>
+        <input id="suEmail" type="email" />
+        <div class="row" style="margin-top:10px">
+            <button id="btnUpdate" class="btn-primary" disabled>Update</button>
+            <button id="btnDelete" class="btn-danger" disabled>Delete</button>
+        </div>
+        <div id="selectedStatus" class="hint"></div>
+    </section>
+
+    <!-- Console / Logs -->
+    <section class="card">
+        <h2>Console</h2>
+        <div id="console" class="status">Ready.</div>
+        <div class="row" style="margin-top:10px">
+            <button id="btnHealth" type="button">Check /health</button>
+            <button id="btnClearConsole" type="button" class="btn-ghost">Clear Console</button>
+        </div>
+    </section>
+</main>
+
+<script>
+    (function(){
+        'use strict';
+
+        // ===== Utilities =====
+        const $ = sel => document.querySelector(sel);
+        const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+        const state = {
+            baseUrl: localStorage.getItem('baseUrl') || 'http://localhost:3000',
+            adminToken: localStorage.getItem('adminToken') || '',
+            paging: { page: 1, limit: 5, sortBy: 'createdAt', order: 'desc', q: '', email: '' },
+            lastMeta: null
+        };
+
+        const log = (msg, data) => {
+            const c = $('#console');
+            const time = new Date().toISOString();
+            c.textContent += "\n[" + time + "] " + msg + (data? "\n" + safeStringify(data) : '');
+            c.scrollTop = c.scrollHeight;
+        };
+
+        const safeStringify = (o) => {
+            try{ return JSON.stringify(o, null, 2); } catch(e){ return String(o); }
+        };
+
+        function setCorsBanner(){
+            if (location.protocol === 'file:') {
+                $('#corsBanner').style.display = 'block';
+            }
+        }
+
+        function headers(isJson=true){
+            const h = isJson ? { 'Content-Type': 'application/json' } : {};
+            if (state.adminToken) h['x-admin-token'] = state.adminToken;
+            return h;
+        }
+
+        async function http(method, path, body){
+            const url = state.baseUrl.replace(/\/$/, '') + path;
+            const opt = { method, headers: headers(body !== undefined) };
+            if (body !== undefined) opt.body = JSON.stringify(body);
+            try {
+                const res = await fetch(url, opt);
+                const ct = res.headers.get('content-type') || '';
+                let payload = null;
+                if (ct.includes('application/json')) payload = await res.json();
+                else payload = await res.text();
+                return { ok: res.ok, status: res.status, data: payload };
+            } catch (err){
+                log('Network error: ' + (err && err.message ? err.message : err));
+                throw err;
+            }
+        }
+
+        function setSelected(user){
+            $('#suId').value = user && user._id ? user._id : '';
+            $('#suName').value = user && user.name ? user.name : '';
+            $('#suEmail').value = user && user.email ? user.email : '';
+            const enabled = !!(user && user._id);
+            $('#btnUpdate').disabled = !enabled;
+            $('#btnDelete').disabled = !enabled;
+        }
+
+        function applyEnvToUI(){
+            $('#baseUrl').value = state.baseUrl;
+            $('#adminToken').value = state.adminToken;
+        }
+
+        function readPagingFromUI(){
+            state.paging.q = $('#q').value.trim();
+            state.paging.email = $('#emailExact').value.trim();
+            state.paging.sortBy = $('#sortBy').value;
+            state.paging.order = $('#order').value;
+            state.paging.limit = Math.max(1, Math.min(100, Number($('#limit').value || 5)));
+            state.paging.page = Math.max(1, Number($('#page').value || 1));
+        }
+
+        function writePagingToUI(){
+            $('#q').value = state.paging.q;
+            $('#emailExact').value = state.paging.email;
+            $('#sortBy').value = state.paging.sortBy;
+            $('#order').value = state.paging.order;
+            $('#limit').value = state.paging.limit;
+            $('#page').value = state.paging.page;
+        }
+
+        function renderUsersTable(items){
+            const tbody = $('#usersTbody');
+            tbody.innerHTML = '';
+            (items || []).forEach((u, i) => {
+                const tr = document.createElement('tr');
+                const created = u.createdAt ? new Date(u.createdAt).toLocaleString() : '';
+                tr.innerHTML = `<td>${i+1}</td>
+                        <td>${escapeHtml(u.name)}</td>
+                        <td><code>${escapeHtml(u.email)}</code></td>
+                        <td class="muted">${escapeHtml(created)}</td>
+                        <td><button data-id="${u._id || ''}" class="btnRowSelect">Select</button></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function escapeHtml(s){
+            return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+        }
+
+        // ===== Event handlers =====
+        $('#saveEnv').addEventListener('click', () => {
+            state.baseUrl = $('#baseUrl').value.trim() || state.baseUrl;
+            state.adminToken = $('#adminToken').value.trim();
+            localStorage.setItem('baseUrl', state.baseUrl);
+            localStorage.setItem('adminToken', state.adminToken);
+            log('Saved Base URL and Admin token.');
+        });
+
+        $('#btnCreate').addEventListener('click', async () => {
+            const name = $('#cuName').value.trim();
+            const email = $('#cuEmail').value.trim();
+            if (!name || !email) {
+                $('#createStatus').textContent = 'Name and email are required.';
+                return;
+            }
+            const res = await http('POST', '/api/users', { name, email });
+            if (res.ok) {
+                $('#createStatus').textContent = '✅ Created';
+                log('Created user', res.data);
+                $('#cuName').value=''; $('#cuEmail').value='';
+                fetchUsers();
+            } else {
+                $('#createStatus').textContent = `❌ ${res.status} ${safeStringify(res.data)}`;
+                log('Create failed', res);
+            }
+        });
+
+        $('#btnClearCreate').addEventListener('click', () => {
+            $('#cuName').value=''; $('#cuEmail').value='';
+            $('#createStatus').textContent='';
+        });
+
+        $('#btnFetch').addEventListener('click', () => { readPagingFromUI(); fetchUsers(); });
+
+        $('#btnPrev').addEventListener('click', () => {
+            readPagingFromUI();
+            if (state.paging.page > 1) state.paging.page -= 1;
+            writePagingToUI();
+            fetchUsers();
+        });
+
+        $('#btnNext').addEventListener('click', () => {
+            readPagingFromUI();
+            if (state.lastMeta && state.lastMeta.hasNext) state.paging.page += 1;
+            writePagingToUI();
+            fetchUsers();
+        });
+
+        $('#usersTbody').addEventListener('click', async (e) => {
+            const btn = e.target.closest('button.btnRowSelect');
+            if (!btn) return;
+            const id = btn.getAttribute('data-id');
+            if (!id) return;
+            const res = await http('GET', `/api/users/${id}`);
+            if (res.ok) {
+                const user = res.data && res.data.user ? res.data.user : null;
+                setSelected({ _id: id, ...user });
+                $('#selectedStatus').textContent = 'Loaded user.';
+                log('Loaded user', res.data);
+            } else {
+                $('#selectedStatus').textContent = `❌ ${res.status} ${safeStringify(res.data)}`;
+                log('Load failed', res);
+            }
+        });
+
+        $('#btnUpdate').addEventListener('click', async () => {
+            const id = $('#suId').value.trim();
+            const name = $('#suName').value.trim();
+            const email = $('#suEmail').value.trim();
+            if (!id) return;
+            const body = {};
+            if (name) body.name = name;
+            if (email) body.email = email;
+            const res = await http('PUT', `/api/users/${encodeURIComponent(id)}`, body);
+            if (res.ok) {
+                $('#selectedStatus').textContent = '✅ Updated';
+                log('Updated user', res.data);
+                fetchUsers();
+            } else {
+                $('#selectedStatus').textContent = `❌ ${res.status} ${safeStringify(res.data)}`;
+                log('Update failed', res);
+            }
+        });
+
+        $('#btnDelete').addEventListener('click', async () => {
+            const id = $('#suId').value.trim();
+            if (!id) return;
+            if (!confirm('Delete this user?')) return;
+            const res = await http('DELETE', `/api/users/${encodeURIComponent(id)}`);
+            if (res.ok) {
+                $('#selectedStatus').textContent = '🗑️ Deleted';
+                setSelected(null);
+                log('Deleted user', { id });
+                fetchUsers();
+            } else {
+                $('#selectedStatus').textContent = `❌ ${res.status} ${safeStringify(res.data)}`;
+                log('Delete failed', res);
+            }
+        });
+
+        $('#btnHealth').addEventListener('click', async () => {
+            const res = await http('GET', '/health');
+            log('Health', res);
+        });
+
+        $('#btnClearConsole').addEventListener('click', () => {
+            $('#console').textContent = 'Ready.';
+        });
+
+        async function fetchUsers(){
+            readPagingFromUI();
+            const { page, limit, sortBy, order, q, email } = state.paging;
+            const params = new URLSearchParams({ page, limit, sortBy, order });
+            if (q) params.set('q', q);
+            if (email) params.set('email', email);
+            const res = await http('GET', `/api/users/paged?${params.toString()}`);
+            if (res.ok) {
+                const data = res.data && res.data.data ? res.data.data : [];
+                const meta = res.data && res.data.meta ? res.data.meta : null;
+                state.lastMeta = meta;
+                renderUsersTable(data);
+                $('#pageMeta').textContent = meta ? `page ${meta.page} / ${meta.totalPages} • total ${meta.total}` : '';
+                log('Fetched users', res.data);
+            } else {
+                renderUsersTable([]);
+                $('#pageMeta').textContent = '';
+                log('Fetch failed', res);
+            }
+        }
+
+        // ===== Init =====
+        function init(){
+            setCorsBanner();
+            applyEnvToUI();
+            writePagingToUI();
+            fetchUsers();
+        }
+
+        init();
+    })();
+</script>
+</body>
+</html>
